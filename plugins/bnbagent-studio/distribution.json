@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "plugin": {
+    "name": "bnbagent-studio",
+    "version": "0.0.13"
+  },
+  "compatibility": {
+    "bag": ">=0.0.13"
+  },
+  "source": {
+    "repository": "https://github.com/bnb-chain/bnbagent-studio",
+    "commit": "bc888681f1112c225df2f7a87fbead4edcdc7c5d",
+    "path": "packages/studio-cli/skills"
+  },
+  "payload": {
+    "root": "skills/bnbagent-studio",
+    "sha256": "7b74000cf6f897ff1a535ae2d2fe02d557fe620ad70ba2f0eb13614299f6d8f7",
+    "files": [
+      {
+        "path": "SKILL.md",
+        "sha256": "51e240e2997cfbf4eeffb46180e2fcd2fd94dd17c0f7fe76d54c6e96eba643b4"
+      },
+      {
+        "path": "references/bnbagent-studio-adding-to-project.md",
+        "sha256": "dc071755184855f715f07424aec3ce6f639f97caa29b45fa6860306cf9408f18"
+      },
+      {
+        "path": "references/bnbagent-studio-buying-from-bazaar.md",
+        "sha256": "64c349ca3a557561504839bb967384dc4147a4f2ec7f96fa4e9274101d9a69d3"
+      },
+      {
+        "path": "references/bnbagent-studio-buying-via-8183.md",
+        "sha256": "49715bd49703b9d2933254a25ebe5749417609816d8ab3e986d88c283a7d2792"
+      },
+      {
+        "path": "references/bnbagent-studio-buying-via-mpp.md",
+        "sha256": "ce4131b43e206e599f0f2520ccba28346234e812dff1b94f7add493a34228630"
+      },
+      {
+        "path": "references/bnbagent-studio-extending-signing.md",
+        "sha256": "f8572f0c45d1e4441aa9bc0f0f88a3da54930868b51287c117658485f64850f0"
+      },
+      {
+        "path": "references/bnbagent-studio-operating.md",
+        "sha256": "1a3a4ae8d31eb655f147c29e23d5383317d7640a867007fa196f0785968d7d0f"
+      },
+      {
+        "path": "references/bnbagent-studio-scaffolding-agent.md",
+        "sha256": "c34ae08e007ea8b5e12ea8935437631763019611cc054965bb08c92197eefd9f"
+      },
+      {
+        "path": "references/bnbagent-studio-selling-via-8183.md",
+        "sha256": "b334e5baa7efc5c09b2acbacb6dc25d6129c9baec9e23cff3e3bb57c277a2b19"
+      },
+      {
+        "path": "references/bnbagent-studio-selling-via-b402.md",
+        "sha256": "afb63fc8f015e1659e7ee237902e8e8e42ed2c63a1593636267a9cd46db29ed8"
+      },
+      {
+        "path": "references/bnbagent-studio-use-aws-agentcore.md",
+        "sha256": "542ca817ae753da7e19a067a5552b6901fe1fa3478cf7285023e60f182e2553b"
+      },
+      {
+        "path": "references/bnbagent-studio-use-azure-foundry.md",
+        "sha256": "9457c3d363a78eff0a5d65c7b439156970e0666ea96e4896061b70e123316d22"
+      },
+      {
+        "path": "references/bnbagent-studio-use-bnb-trial.md",
+        "sha256": "7f296959c446b67cf409f2196415f0ce72158b86b073d90361e8ad71f8004b38"
+      },
+      {
+        "path": "references/bnbagent-studio-using-altana-wallet.md",
+        "sha256": "de2181532c043081e88d13866a400dc60d3a04ce264546a59c8a3513c0584f07"
+      },
+      {
+        "path": "references/bnbagent-studio-using-twak-wallet.md",
+        "sha256": "a6699bc92dba032dca5f5876dc6ce415e4ac21a5ba35640322da4f20d61e4440"
+      },
+      {
+        "path": "references/bnbagent-studio-wiring-llm-tools.md",
+        "sha256": "2094c36ba4c447b4c6b463c46ae42f38a8256d5e788bc1d5ece457089c3e9cbf"
+      }
+    ]
+  },
+  "manifests": {
+    "claude": ".claude-plugin/plugin.json",
+    "cursor": ".cursor-plugin/plugin.json",
+    "codex": ".codex-plugin/plugin.json"
+  }
+}

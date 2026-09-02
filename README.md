@@ -1,10 +1,39 @@
 # BNB Chain Skills
 
-> A collection of AI agent skills for the [BNB Chain MCP](https://github.com/bnb-chain/bnbchain-mcp) (Model Context Protocol) server.
+> Official skills and plugins for building with BNB Chain.
 
 ## Introduction
 
-BNB Chain Skills helps AI agents (e.g. Cursor, Claude) install and use the BNB Chain MCP server effectively. It provides structured knowledge on how to connect the MCP server, configure credentials, and use each available tool for blocks, transactions, contracts, tokens, NFTs, wallet operations, ERC-8004 agent registration, and Greenfield storage.
+BNB Chain Skills helps AI coding agents install and use BNB Chain developer tools. It includes the BNB Chain MCP skill and the BNB Agent Studio plugin for Claude Code, Cursor, and Codex.
+
+## BNB Agent Studio plugin
+
+The `bnbagent-studio` plugin guides agents through creating, running, diagnosing, and deploying BNB Chain seller agents with the `bag` CLI. The plugin does not install the CLI automatically; install it explicitly and verify the version first:
+
+```bash
+npm install -g @bnbagent/studio-cli@latest
+bag --version
+```
+
+### Claude Code
+
+```text
+/plugin marketplace add bnb-chain/bnbchain-skills
+/plugin install bnbagent-studio@bnbchain-skills
+```
+
+### Cursor
+
+Open **Customize → Plugins**, select the BNB Chain marketplace, and install **BNB Agent Studio**.
+
+### Codex
+
+```bash
+codex plugin marketplace add bnb-chain/bnbchain-skills
+codex plugin add bnbagent-studio@bnbchain-skills
+```
+
+The three platform manifests install the same versioned skill payload. See [`plugins/bnbagent-studio`](plugins/bnbagent-studio) for its version, minimum compatible `bag` version, and source commit.
 
 ## Claude/Cursor skills vs OpenClaw skills
 
