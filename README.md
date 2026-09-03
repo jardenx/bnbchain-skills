@@ -54,6 +54,7 @@ Skills are structured knowledge files that give AI coding agents domain-specific
 | Skill | Description |
 |-------|-------------|
 | **bnbchain-mcp-skill** | Install and use BNB Chain MCP — blocks, transactions, contracts, tokens, NFTs, wallet, ERC-8004 agents, Greenfield. Covers connection, credentials, and every MCP tool. |
+| **bnbagent-studio** | Build, run, diagnose, deploy, and monetize BNB Chain seller agents with `bag`, including wallet, ERC-8004, ERC-8183, x402, and managed deployment workflows. |
 
 ## Installation
 
@@ -61,6 +62,12 @@ Skills are structured knowledge files that give AI coding agents domain-specific
 
 ```bash
 npx skills add bnb-chain/bnbchain-skills
+```
+
+Install only the BNB Agent Studio skill:
+
+```bash
+npx skills add bnb-chain/bnbchain-skills --skill bnbagent-studio
 ```
 
 Install globally (available across all projects):
