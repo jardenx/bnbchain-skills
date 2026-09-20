@@ -25,7 +25,7 @@ This one Studio command:
 
 1. Collects the NaaS Access ID and HMAC secret through hidden Studio prompts. It never starts `twak setup` or asks which AI harnesses to wire.
 2. Runs the project-pinned `twak init --json` with the two credentials in the child environment.
-3. Performs an authenticated `twak price BNB --chain bsc --json` read. Newly written credentials are removed if this verification fails; pre-existing credentials are never deleted.
+3. Performs an authenticated `twak search BNB --networks 20000714 --limit 1 --json` read. Newly written credentials are removed if this verification fails; pre-existing credentials are never deleted.
 4. Generates `TWAK_WALLET_PASSWORD` from 32 bytes of the OS cryptographic random source and writes it to `.studio/.env.local` (0600). There is no weak-random fallback and the value is never printed.
 5. Creates the project-dedicated wallet with `--no-keychain --json`, tightens `.twak/` to 0700 and its credential/wallet files to 0600, reads the BSC address, and anchors it into `studio.toml`.
 6. Refuses to replace an anchored identity and never overwrites an existing wallet or credential file.
@@ -42,7 +42,7 @@ bag llm activate
 bag doctor
 ```
 
-No separate `bag wallet new` step is required. An existing wallet is adopted only after Studio verifies its password and reads its address. If its password is not already in `.studio/.env.local`, the user enters it through a hidden Studio prompt; Studio never invents a replacement password for an existing wallet.
+No separate `bag wallet new` step is required. An existing wallet is adopted only after Studio verifies its password and reads its address. If its password is not already in `.studio/.env.local`, the user enters it through a hidden Studio prompt or supplies the original password using `--password-stdin` / `--password-file <0600 file>`; Studio never invents a replacement password for an existing wallet.
 
 ### Other wallet placements
 

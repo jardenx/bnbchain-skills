@@ -7,7 +7,7 @@ description: When the user wants their agent to buy a paid x402 capability - mar
 
 # bnbagent-studio-buying-from-bazaar
 
-Procedure to give an agent a **paid capability**: the agent calls an x402-protected API (e.g. CoinMarketCap market data), receives a `402 Payment Required`, signs a $U payment locally, retries, and gets the data - all automatic at runtime. This is the buyer counterpart of what the seller side already does over x402.
+Procedure to give an agent a **paid capability**: the agent calls an x402-protected API, receives a `402 Payment Required`, selects the explicit network/catalog asset, pays through an allowed wallet route, and gets the data. U is the default only when `--asset` is omitted; Studio never changes token automatically.
 
 **The three roles, kept separate** (do not conflate):
 
@@ -51,7 +51,7 @@ verified = true                                         # studio-reviewed shelf
 
 Hard-stop cases: a reviewed merchant whose live payTo drifts from the studio pin (address rotation or tampering - upgrade studio or verify out-of-band and pass `--pay-to`), and `--cap` below the live per-call price.
 
-Wallet kinds and rails: `evm-local` signs EIP-3009 locally; `twak` and `altana` route through a delegated payer that prefers the merchant's permit2 route. Altana smart-account payments are verified by the B402 facilitator on its permit2 rails (live since 2026-08, CMC field-verified) and need the one-time `bag wallet session x402-setup` arming (checker approval + bounded U→Permit2 allowance) - `bag doctor` shows the arming state as `[wallet] Altana x402 buying`.
+Wallet kinds and rails: `evm-local` and Turnkey use only catalog-verified EIP-3009 U routes; their Permit2 path is deferred. Altana may pay Permit2 Exact only through the SDK's atomic `requestExact` interface, which binds the same challenge's resource, CAIP-2 network, asset, amount, payTo, method, timeout, proxy/name/version and trusted spender before signing. ERC-20 allowance is still checked against canonical Permit2. TWAK does not expose an equivalent verifiable exact-route interface, so Studio fails closed before dispatch. These are code boundaries, not claims that any merchant or live chain flow has passed verification.
 
 ## Step 2 - wire the buyer tools into the agent
 
@@ -79,12 +79,12 @@ This is commitment #3 intact: signing stays fixed handler code; the merchant tab
 ## Step 3 - verify end to end
 
 ```bash
-bag x402 quote "https://pro-api.coinmarketcap.com/x402/v3/cryptocurrency/quotes/latest?id=1"   # free
-bag x402 buy   "https://pro-api.coinmarketcap.com/x402/v3/cryptocurrency/quotes/latest?id=1" --max-usd 0.02
+bag x402 quote "https://pro-api.coinmarketcap.com/x402/v3/cryptocurrency/quotes/latest?id=1" --asset U  # free
+bag x402 buy   "https://pro-api.coinmarketcap.com/x402/v3/cryptocurrency/quotes/latest?id=1" --asset U --max-usd 0.02
 bag dev        # then ask the agent something that needs the paid data
 ```
 
-`buy` needs `WALLET_PASSWORD` set and the wallet funded with mainnet $U (see money section below). A successful `buy` prints `✓ Paid: 0.01 USD` plus the response body - that is the whole x402 loop proven.
+`buy` needs the wallet backend ready and the selected token funded. An unavailable or underfunded selection prints only verified alternatives with exact `--asset SYMBOL` hints; it never switches asset or retries. Treat a success message as evidence for that invocation only, not as general live compatibility.
 
 ## The money - read before funding
 
@@ -101,8 +101,9 @@ bag dev        # then ask the agent something that needs the paid data
 | `X402RecipientRequiredError` | No pinned recipient for that host → same fix |
 | `X402RecipientMismatchError` | Live payTo drifted from the pin - do NOT override casually; re-verify the merchant |
 | `X402BudgetExhaustedError` | Per-call cap or daily budget hit - raise `per_call_cap_usd` / `[budget].max_per_day_usd` deliberately |
-| `x402 402 has no EIP-3009-payable option` | Merchant offers only permit2/other methods for $U on this network - a local-signing (`evm-local`) buyer cannot sign those. Delegated wallets pay permit2 routes through their own client: `twak` (mainnet), or `altana` sessions (ERC-1271; B402 verifies them on the permit2 rails - arm once with `bag wallet session x402-setup`) |
-| `U→Permit2 allowance … cannot cover max_usd` | Altana only: the bounded Permit2 allowance is spent/too small - re-run `bag wallet session x402-setup --allowance-u <amount>` (admin key) |
+| `x402 402 has no EIP-3009-payable option` | The selected asset has no catalog-verified EIP-3009 route for a local/Turnkey buyer. Do not enable raw Permit2 signing. Altana requires a matching `requestExact` Permit2 route; TWAK paid x402 remains pre-dispatch unsupported. |
+| `…→Permit2 allowance … cannot cover max_usd` | Altana only: the bounded Permit2 allowance for that asset is spent/too small - re-run `bag wallet session x402-setup --allowance <amount>` (admin key) |
+| `wallet/payment method unsupported for USDC/USDT` | The asset settles b402 through `permit2-exact` only, and `evm-local`/`turnkey` sign EIP-3009 only (`twak` is fail-closed for paid x402). The route is fine - the wallet cannot sign it. Pay it from an `altana` session wallet armed with `bag wallet session x402-setup --allowance <amount> --asset USDC`, or retry the offered EIP-3009 alternative. |
 | `X402PolicyError` / `PolicyViolation` | Signing allowlist - see `bnbagent-studio-extending-signing.md` |
 
 **Different from**:

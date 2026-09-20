@@ -64,17 +64,19 @@ bag recipe code runtimes/agentcore > /dev/null   # inspect; bag init writes the 
 
 In practice `bag init` already scaffolds `app/agent/`. Use `bag recipe code agent` / `bag recipe code runtimes/agentcore` to inspect or re-emit (emits under `{{PKG}}` = the agent's `src/` dir, or pass `--pkg <name>` explicitly).
 
-Gotcha: token is **U** (USD-pegged stablecoin on BSC), not BNB. All ERC-8183 amounts are denominated in U.
+Gotcha: the payment asset is a configured catalog token, not BNB: Mainnet supports **U/USD1/USDC/USDT** and Testnet supports **U/USDC/USDT**. Mainnet USD1 is EIP-3009-only; Testnet does not support USD1. The canonical seller price is in USD; each job amount is converted to and bound to exactly one selected token.
 
 ## Step 4 - Wire your existing agent's value into the Agent
 
 The Agent sub-project (`app/agent/`) is where your existing valuable agent lives. Move your LLM construction / tools / memory / KB wiring into it, and implement the `runWork` developer hook (in `app/agent/src/sellerCore.ts` for A2A, `app/agent/src/mcpMain.ts` for MCP; called from `notify_funded`'s delivery) to produce the deliverable. Read-only chain tools go in `app/agent/src/tools.ts` (see `bnbagent-studio-wiring-llm-tools`). ALL signing stays in `app/agent/src/signing.ts` - never expose a signing call as an LLM tool.
 
-Tune the price in `app/agent/studio.toml` (`[payments.erc8183]` `min_price`/ `max_price`): the `negotiate` path is **rule-based, no LLM** - fixed code takes the configured list price, clamps it to `[min_price, max_price]`, then `signing.ts` EIP-191-signs the offer. For per-task pricing, compute the price from the request _before_ clamping - the LLM still never sets the price. The buyer anchors the signed envelope on-chain via `createJob` + `fund`.
+Tune the canonical price in `app/agent/studio.toml` under `[payments.seller]`: the `negotiate` path is **rule-based, no LLM** - fixed code resolves the requested asset on the exact network, converts the shared `price_usd` using catalog decimals, then `signing.ts` EIP-191-signs the offer. The buyer anchors the signed envelope on-chain via `createJob` + `fund`.
 
-Use `bag config set payments.erc8183.price 0` only for an explicit FREE product decision. Studio stores ERC-8183 amounts as decimal strings and reports FREE in `bag doctor`; the canonical stack supports zero funding. If a custom deployment is selected, set all three `ERC8183_*_ADDRESS` overrides from that same stack. The buyer still runs `setBudget(0)` and `fund(0)`, but no ERC-20 approval or token escrow occurs. Require `bag doctor` and `bag deploy prepare` to pass.
+Legacy U-only projects without `[payments.seller]` retain `[payments.erc8183]` `price`/`min_price`/`max_price`/`currency` and their clamp behavior. Those bounds do not apply to canonical `price_usd`. Canonical `[payments.seller]` plus any legacy price or asset field is ambiguous and fails readiness; run `bag config migrate-seller` or remove the legacy fields instead of depending on precedence.
 
-For an X402 face, choose its request price independently. Use `bag config set payments.b402_seller.price_usd 0` only when the existing agent is intentionally becoming an unrestricted anonymous FREE API. This path bypasses B402 verify/settle, payment, and settlement audit; it needs no merchant credentials and Studio will not synchronize any configured B402 secrets. Positive prices retain the paid B402 onboarding and settle-before-work flow. Verify the choice with `bag x402 sell status`, `bag doctor`, and `bag deploy prepare`.
+Use `bag config set payments.seller.price_usd 0` only for an explicit FREE product decision; it writes `[payments.seller]` with `price_usd = "0"`. The canonical seller policy stores one USD price and an ordered, non-empty canonical asset set; all active assets use that same value. Studio reports FREE in `bag doctor`; the canonical stack supports zero funding. If a custom deployment is selected, set all three `ERC8183_*_ADDRESS` overrides from that same stack. The buyer still runs `setBudget(0)` and `fund(0)`, but no ERC-20 approval or token escrow occurs. Require `bag doctor` and `bag deploy prepare` to pass.
+
+For an X402 or MPP face, use the same `[payments.seller].price_usd`. Set it to `0` only when the existing agent is intentionally becoming an unrestricted anonymous FREE API. This path bypasses B402 verify/settle, payment, and settlement audit; it needs no merchant credentials and Studio will not synchronize any configured B402 secrets. Positive prices retain the paid B402 onboarding and settle-before-work flow. Verify the choice with status, `bag doctor`, and `bag deploy prepare`.
 
 ## Step 4c - LLM credit continuity (automatic, NOT an LLM tool)
 

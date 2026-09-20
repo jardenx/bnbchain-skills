@@ -11,8 +11,8 @@ Use this playbook to activate the x402 seller rail for one agent. First choose P
 
 ## Preconditions
 
-- The agent wallet already exists. In PAID mode its address receives U.
-- The project targets the managed platform or self-hosted AgentCore (azure-foundry cannot activate the rail).
+- The agent wallet already exists. In PAID mode its address receives the actual selected active token: Mainnet U/USD1/USDC/USDT or Testnet U/USDC/USDT. Testnet does not support USD1.
+- The project targets the managed platform or a self-hosted AgentCore/Azure Foundry runtime. PAID self-hosted targets still require the documented envelope-v1 ingress and fixed-egress B402 path; platform/backend capability and deployment readiness must pass before activation.
 - PAID managed platform only: an interactive GitHub-login session from `bag platform login` is available for reading the platform Relay egress IPs. A `bnbk_…` CI token does not satisfy this endpoint's GitHub-user check.
 - `[payments.b402_seller]` exists. If not, run `bag x402 sell init`.
 
@@ -23,12 +23,12 @@ The PAID application uses the **agent wallet address**, not a developer treasury
 Use one of these explicit boundaries:
 
 ```bash
-bag init <name> --rails b402 --b402-price 0
+bag init <name> --rails b402 --seller-price-usd 0
 bag x402 sell init --price-usd 0
-bag config set payments.b402_seller.price_usd 0
+bag config set payments.seller.price_usd 0
 ```
 
-`"0"` means anonymous FREE passthrough. The runtime returns work directly and does not issue a 402 challenge, call B402 `/supported`/verify/settle, transfer U, or write an `x402_sell` settlement audit. B402 credentials are ignored and not synchronized. Run `bag x402 sell status`, `bag doctor`, and `bag deploy prepare`; all must label the route FREE.
+`"0"` means anonymous FREE passthrough. The runtime returns work directly and does not issue a 402 challenge, call B402 `/supported`/verify/settle, transfer a token, or write an `x402_sell` settlement audit. B402 credentials are ignored and not synchronized. Run `bag x402 sell status`, `bag doctor`, and `bag deploy prepare`; all must label the route FREE.
 
 This is unrestricted public access. Confirm that intent before continuing. Managed platform still publishes the route through its gateway; self-hosted AgentCore and Azure Foundry deploys still need an envelope-v1 front. If FREE is the selected product, skip the merchant/RSA/IP sections below.
 
@@ -85,11 +85,11 @@ B402 allowlists the merchant's **outbound** (egress) IPs, the addresses the agen
    curl ipinfo.io/ip
    ```
 
-3. **Self-hosted AgentCore egress (self-deploys)**: operate a restricted B402 Relay on a host with a fixed public egress IP, such as a user-managed VPS, and submit that IP. Set the runtime `B402_BASE_URL` to the Relay base URL. The Relay exposes only `supported`, `verify`, and `settle`, fixes the upstream facilitator, and forwards the signed body and Tesla header allowlist without holding the merchant private key or automatically retrying a settlement transport failure. Review the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/) for provider constraints; the Studio source checkout keeps the TypeScript gateway example at `docs/guides/self-hosted-x402-gateway.md`.
+3. **Self-hosted AgentCore egress (self-deploys)**: operate a restricted B402 Relay on a host with a fixed public egress IP, such as a user-managed VPS, and submit that IP. Set the runtime `B402_BASE_URL` to the Relay base URL. The Relay exposes only `supported`, `verify`, and `settle`, fixes the upstream facilitator, and forwards the signed body and Tesla header allowlist without holding the merchant private key or automatically retrying a settlement transport failure. Review the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/) for provider constraints and supported front-door patterns.
 
    As an alternative, use AWS-supported AgentCore VPC mode with a private subnet, NAT Gateway, and Elastic IP. Submit the Elastic IP and keep `B402_BASE_URL` pointed at the facilitator. Studio does not deploy or manage that AWS network.
 
-4. **Self-hosted Azure Foundry egress (self-deploys)**: Foundry hosted-agent containers have floating egress just like AgentCore, so the agent must NOT call the facilitator directly. Run the envelope gateway on a Container Apps workload-profiles environment whose subnet has a NAT Gateway with a Standard static public IP, co-host a restricted B402 forwarder there (the AWS guide's Relay example works verbatim — the NAT Gateway replaces its fixed-IP host requirement), point the runtime `B402_BASE_URL` at that forwarder, and submit the NAT Gateway IP. The environment type and VNet cannot be changed after creation. Review the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/) for provider constraints; the Studio source checkout keeps the subnet, ingress, and `minReplicas` recipe at `docs/guides/self-hosted-x402-gateway-azure.md`. Studio does not deploy or manage that Azure network.
+4. **Self-hosted Azure Foundry egress (self-deploys)**: Foundry hosted-agent containers have floating egress just like AgentCore, so the agent must NOT call the facilitator directly. Run the envelope gateway on a Container Apps workload-profiles environment whose subnet has a NAT Gateway with a Standard static public IP, co-host a restricted B402 forwarder there (the AWS guide's Relay example works verbatim — the NAT Gateway replaces its fixed-IP host requirement), point the runtime `B402_BASE_URL` at that forwarder, and submit the NAT Gateway IP. The environment type and VNet cannot be changed after creation. Review the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/) for provider constraints and supported front-door patterns. Studio does not deploy or manage that Azure network.
 
 Do not add the public inbound gateway IP, a transient build-runner IP, or guessed addresses. If the whitelist endpoint is unreachable, stop onboarding and confirm the platform environment with the operator.
 
@@ -144,17 +144,21 @@ When the credentials, IP allowlist, and facilitator environment are ready, run t
 bag x402 sell status
 ```
 
-For a sandbox/trial agent, it must find an exact U kind on `eip155:97` (the probe lists the offered rails, e.g. `(eip3009, permit2-exact)`). For production it must find the mainnet environment expected by the project. A network mismatch is not safe to ignore.
+For a sandbox/trial agent, the capability snapshot must use exact `eip155:97`; B402 `TEST_U` is `0x330949Aed7d00FCe0558C64ED6FeC9792616cC39` with 6 decimals and EIP-3009-only, while `TEST_USDC`/`TEST_USDT` may activate Permit2 Exact. For production it must find exact `eip155:56`. A network mismatch is not safe to ignore. A failed probe produces a timestamped dormant snapshot rather than reusing guessed methods.
+
+`ACTIVE` on this snapshot means the facilitator will settle that asset × method for the route you publish. It is a statement about your **seller** face, not about which buyer can pay it — the buyers of your routes are third-party x402 clients. Studio's own buyer covers these routes unevenly: `evm-local` and `turnkey` sign EIP-3009 only, `twak` is fail-closed for paid x402, and `altana` is the one wallet kind that pays `permit2-exact`, once `bag wallet session x402-setup` has armed that asset's Permit2 allowance. So a testnet USDC/USDT route is correctly `ACTIVE` even while `bag x402 buy --asset USDC` from a local wallet against your own agent is refused: that is the buyer wallet's signing boundary, not a dead route.
 
 Run the deployment gate, then redeploy to activate the selected mode:
 
 ```bash
 bag deploy prepare
-bag deploy --provider bnb   # managed platform
-bag deploy --provider aws   # self-hosted AgentCore
+bag deploy --provider bnb                   # managed platform, recipe backend
+bag deploy --provider bnb --backend azure   # managed Azure, explicit non-TTY confirmation
+bag deploy --provider aws                   # self-hosted AgentCore
+bag deploy --provider azure                 # self-hosted Azure Foundry
 ```
 
-On the managed platform the deploy summary must say `x402 rail is ACTIVE` (or `ACTIVE in FREE mode`) and print the anonymous `/x402` URL. On a self-hosted AgentCore deploy it says `x402 rail is ACTIVE (self-hosted AgentCore)` or `ACTIVE in FREE mode (self-hosted AgentCore)` (self-hosted Azure Foundry prints the same summary with its own label): the rail runs in-process, but there is no anonymous URL. Operate your own HTTP front that relays envelope-v1 JSON through an authenticated AgentCore invocation. The default Bag self-deploy uses Cognito OAuth over raw HTTPS; AWS SDK/SigV4 is only for a runtime deliberately configured with IAM authorization. PAID also needs your own fixed-egress B402 Relay or equivalent network path. Review the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/) for provider constraints; the Studio source checkout keeps the complete gateway wrapper, response parser, Relay example, and direct-invocation fallback at `docs/guides/self-hosted-x402-gateway.md`. A dormant or forced-dormant summary means the rail was not activated; fix the named credential, runtime, network, or tunnel condition and redeploy.
+When readiness succeeds, a managed-platform deploy summary reports `x402 rail is ACTIVE` (or `ACTIVE in FREE mode`) and prints the anonymous `/x402` URL. A self-hosted AgentCore or Azure Foundry summary uses the corresponding self-hosted label: the rail runs in-process, but there is no anonymous URL. Operate the documented envelope-v1 front for that runtime. The default Bag self-deploy uses Cognito OAuth over raw HTTPS; AWS SDK/SigV4 is only for a runtime deliberately configured with IAM authorization; PAID also needs a fixed-egress B402 Relay or equivalent network path. Review the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/) for supported provider and front-door patterns. A dormant or forced-dormant summary means the rail was not activated; fix the named credential, runtime, network, or tunnel condition and redeploy. These are implemented status/readiness semantics, not a claim that a live deployment or payment has been verified.
 
 ## Hard rules
 
@@ -163,7 +167,7 @@ On the managed platform the deploy summary must say `x402 rail is ACTIVE` (or `A
 - Never replay a paid HTTP request whose outcome is unknown. Follow `docs/guides/x402-selling.md` and reconcile `(nonce, network, payer)` first.
 - Binance `/settle` is asynchronous. A parseable `success: false` response with a transaction is pending and requires an idempotent poll with the same settlement payload. Studio with `@bnb-chain/b402@0.2.1` does not yet perform that poll; it classifies pending as unknown. Version 0.2.1 separately guards credential replays through an atomic store. Do not claim current mainnet readiness until polling is implemented.
 - Settlement happens before work. A later work failure retains the payment and does not trigger an automatic refund.
-- The rail activates on AgentCore and Azure Foundry targets (managed platform or self-hosted); self-hosted targets have no anonymous URL and need an operator-run envelope-v1 front.
+- AgentCore and Azure Foundry targets are supported in managed-platform and self-hosted modes when their capability/readiness checks pass. Self-hosted targets have no anonymous URL and need an operator-run envelope-v1 front. This support statement does not claim that a particular live deployment or payment succeeded.
 - Every supported `wallet.kind` can be the PAID B402 payout wallet: `evm-local`, `twak`, `turnkey`, and `altana`. The payout lands at the configured `pay_to` or, by default, `[wallet].address`; for altana that address is the admin EOA (EIP-7702 — the smart account address equals the admin address), so the locally-held admin keystore can always move the revenue. Register the B402 merchant credentials for that exact address. FREE x402 bypasses B402 and has no payout.
-- Buyer compatibility: the 402 challenge advertises both `exact` rails - `eip3009` (EOA buyers, no pre-authorization) and `permit2-exact` (B402 verifies ERC-1271 smart-account signatures on this rail, so Altana sessions and ERC-4337 wallets can pay; the buyer needs a bounded U→Permit2 allowance first - see `bnbagent-studio-using-altana-wallet.md`). Rails are filtered against the facilitator's live `/supported`; `bag x402 sell status` prints which rails it actually offers, e.g. `(eip3009, permit2-exact)`. The seller never verifies signatures locally on either rail.
+- Buyer compatibility is per network/asset/method: Mainnet USD1 is `0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d`, 18 decimals, EIP-3009-only with domain `World Liberty Financial USD / 1`; it has no Permit2 route and its Commerce/facilitator live verification remains a release gate. Mainnet U may use EIP-3009 and Permit2 Exact; Testnet `TEST_U` uses `0x330949Aed7d00FCe0558C64ED6FeC9792616cC39`, 6 decimals, and EIP-3009 only; USDC/USDT use Permit2 Exact. Testnet does not support USD1. `permit2-upto` is never active. Altana Permit2 payment requires the atomic `requestExact` boundary and bounded canonical-Permit2 allowance; local/Turnkey Permit2 and TWAK paid x402 remain deferred. Status reports snapshot facts only and does not prove a live chain payment.
 - Never describe FREE as a zero-value B402 settlement. It bypasses B402.

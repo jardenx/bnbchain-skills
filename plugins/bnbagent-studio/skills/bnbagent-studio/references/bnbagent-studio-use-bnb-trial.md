@@ -9,7 +9,7 @@ description: Use when deploying or operating a bnbagent-studio seller on the BNB
 
 Treat this provider as a temporary testnet sandbox. Require a throwaway wallet, keep `bsc-testnet`, and explain that the runtime signing material is transmitted to the operator's managed secret store for the trial. Never use a mainnet key. Exception: `wallet.kind='altana'` ships only the bounded, budget-limited, revocable session - the throwaway-wallet advice does not apply; tighten the session instead (`bag wallet session grant --force --budget-u <small> --expiry-days <short>`) and never run `bag wallet new` on an altana project (it breaks the session's `[wallet].address` anchor).
 
-All auth and cloud lifecycle work must cross the pinned `@bnbagent/deploy-cli@0.5.15` boundary. Do not call a cloud CLI or platform REST routes directly. The managed backend is recipe-derived: `agentcore` uses AWS; `azure-foundry` uses Azure. For headless managed Azure, confirm with `bag deploy --provider bnb --backend azure --yes`; never treat `--backend` as a cross-cloud recipe converter.
+All auth and cloud lifecycle work must cross the pinned `@bnbagent/deploy-cli@0.6.6` boundary. Do not call a cloud CLI or platform REST routes directly. The managed backend is recipe-derived: `agentcore` uses AWS; `azure-foundry` uses Azure. For headless managed Azure, confirm with `bag deploy --provider bnb --backend azure --yes`; never treat `--backend` as a cross-cloud recipe converter.
 
 ## Select and authenticate
 

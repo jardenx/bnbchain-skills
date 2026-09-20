@@ -24,7 +24,7 @@ Claude Code (or another agent) editing the user's workspace. The user has run `b
 
 ## When NOT to use this skill
 
-- The user wants the Agent to **sign transactions / pay** - in the single seller model all signing (quote-sign, submit, settle) is FIXED code in `app/agent/src/signing.ts` (called by A2A's `SellerAgentExecutor` or MCP's `src/mcpMain.ts` tools), **never** an LLM-callable tool. The LLM only produces work text after a job is verified funded; fixed code prices, clamps, signs, and submits. There is no "wire a signing tool into the LLM" path in v1.
+- The user wants the Agent to **sign transactions / pay** - in the single seller model all signing (quote-sign, submit, settle) is FIXED code in `app/agent/src/signing.ts` (called by A2A's `SellerAgentExecutor` or MCP's `src/mcpMain.ts` tools), **never** an LLM-callable tool. The LLM only produces work text after a job is verified funded; fixed code resolves the canonical price/asset, signs, and submits. There is no "wire a signing tool into the LLM" path in v1.
 - The user is doing dev-time debugging via Claude Code - that's the `bag` CLI read commands (`bag wallet`, `bag erc8183 status/list`, …), not LLM tools.
 
 ---
@@ -214,7 +214,7 @@ pieverse_usage: ...,   // requires [llm.provider=pieverse-llm]
 
 ## Step 5 - Write operations live in fixed code, NOT LLM tools
 
-Read tools (this skill) are safe-ish - worst case the LLM gives wrong info. **Write operations** (quote-sign, submit, settle) are the whole point of the single seller model's signing boundary: they live as FIXED code in `app/agent/src/signing.ts`, are dispatched by A2A's `SellerCore` (in `app/agent/src/sellerCore.ts`, which `SellerAgentExecutor` inherits) or MCP's server tools (`negotiate`/`notify_funded`; `settle` is the manual `bag erc8183 settle`), and are **never** put in the LLM's `tools` set. The quote price is rule-based (fixed code reads the list `price`, clamps it to `[min,max]`, then signs - the LLM never touches the price); the LLM only PRODUCES the work text in `notify_funded` delivery - money never flows through a tool call.
+Read tools (this skill) are safe-ish - worst case the LLM gives wrong info. **Write operations** (quote-sign, submit, settle) are the whole point of the single seller model's signing boundary: they live as FIXED code in `app/agent/src/signing.ts`, are dispatched by A2A's `SellerCore` (in `app/agent/src/sellerCore.ts`, which `SellerAgentExecutor` inherits) or MCP's server tools (`negotiate`/`notify_funded`; `settle` is the manual `bag erc8183 settle`), and are **never** put in the LLM's `tools` set. The quote price is rule-based: fixed code reads canonical `[payments.seller].price_usd`, converts it exactly for the selected asset, and signs; the LLM never touches the price. Only a legacy U-only config without `[payments.seller]` retains `price`/`min_price`/`max_price` clamp semantics. The LLM only PRODUCES the work text in `notify_funded` delivery - money never flows through a tool call.
 
 The one automatic signing path outside `signing.ts` is the budget-gated model-wrapper LLM-credit auto-renew hook (in the emitted `app/agent/src/model.ts`'s `buildModel()` factory, backed by `@bnbagent/studio-runtime/pieverse` `PieverseCreditEnsurer`) - also automatic, also **not** an LLM tool.
 

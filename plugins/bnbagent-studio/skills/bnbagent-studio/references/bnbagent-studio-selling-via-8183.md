@@ -1,6 +1,6 @@
 ---
 name: bnbagent-studio-selling-via-8183
-description: When the user is acting as an ERC-8183 seller on the single selected-protocol AgentCore runtime - implementing the value `notify_funded` produces, tuning the deterministic rule-based quote price (fixed list price, clamp + sign - no LLM in the negotiate path), understanding A2A async delivery vs MCP synchronous delivery, handling submitted jobs, defending against buyer disputes, and ensuring LLM credit continuity during long jobs. Owns the seller-side decision tree for the entire job lifecycle.
+description: When the user is acting as an ERC-8183 seller on the single selected-protocol AgentCore runtime - implementing the value `notify_funded` produces, tuning the deterministic canonical USD quote price (exact asset conversion + sign - no LLM in the negotiate path), understanding A2A async delivery vs MCP synchronous delivery, handling submitted jobs, defending against buyer disputes, and ensuring LLM credit continuity during long jobs. Owns the seller-side decision tree for the entire job lifecycle.
 ---
 
 > **Reference file** of the `bnbagent-studio` router skill - installed at `bnbagent-studio/references/` and loaded on demand (not a standalone skill). Route here via the router's decision tree.
@@ -9,7 +9,7 @@ description: When the user is acting as an ERC-8183 seller on the single selecte
 
 Procedure for the **single seller flow**: implement the value your Agent produces, deploy it to AgentCore (where the default scaffold serves A2A + X402, while ERC-8183 remains available through A2A or an explicitly selected MCP face), and handle the job lifecycle (Agent quotes → buyer funds → buyer calls `notify_funded` → Agent delivers → buyer reads the result from the chain → buyer settles or disputes).
 
-Audience: Claude Code in a working repo with a funded wallet (tBNB + U) and an Agent that produces some valuable output (text, classification, image - whatever).
+Audience: Claude Code in a working repo with a funded gas wallet and an Agent that produces some valuable output (text, classification, image - whatever).
 
 **Different from**:
 
@@ -32,7 +32,7 @@ A v1 seller ships as **one runtime**: a single valuable Agent on AWS Bedrock Age
 ## Preconditions
 
 - `bag doctor` is clean (or only warns on optional checks) - run from workspace root
-- Wallet has ≥ 0.05 tBNB (gas to submit deliverables) and ≥ 0 U (sellers receive U, don't spend)
+- Wallet has gas to submit deliverables. Sellers receive the job-bound active catalog token (Mainnet U/USD1/USDC/USDT; Testnet U/USDC/USDT) and do not fund buyer escrow. Testnet does not support USD1.
 - The agent sub-project is emitted (`<workspace>/app/agent/src/unifiedMain.ts` for A2A or `src/mcpMain.ts` for MCP, plus `src/signing.ts`). If not, run `bag init` or read the `bnbagent-studio-adding-to-project.md` reference first.
 - For LLM-using sellers: `[llm].provider` configured in `app/agent/studio.toml` + (if Pieverse) `bag llm activate` has been run
 
@@ -59,33 +59,49 @@ async function runWork(
 - Don't raise unhandled exceptions through `submitResult`. A permanently-bad job is rejected synchronously. In A2A, once accepted, a background delivery FAILURE leaves the job FUNDED (never reaching SUBMITTED) and is surfaced in CloudWatch - not the A2A reply. Let work errors surface so the job simply doesn't get a deliverable and the buyer can dispute cleanly; don't fake a deliverable.
 - All chain WRITES go through `app/agent/src/signing.ts` (fixed code). In the `notify_funded` work the LLM only PRODUCES work text - it never signs, and it never sets the price (the quote price is rule-based; see Stage 2).
 
-## Stage 2 - Rule-based pricing (fixed list price, clamp + sign - no LLM)
+## Stage 2 - Canonical pricing (shared USD price, exact conversion + sign - no LLM)
 
 A `negotiate` skill message hits the executor, which dispatches to the quote path. The quote path is **deterministic policy - no LLM, no tools**:
 
-1. Fixed code reads the configured **list price** from `[payments.erc8183].price` (`signing.ts` `listPrice()`). The LLM is never invoked in the negotiate path and never proposes or touches the price.
-2. **Fixed code CLAMPS** the list price to `[min_price, max_price]` (`signing.ts` `clampPrice()`) - a misconfigured or hostile request can never sign out of bounds. For per-task pricing, compute the price from the request in the quote path _before_ clamping; it stays deterministic code, not an LLM decision.
-3. `signing.ts` `signQuote` does the **EIP-191 sign** with a short TTL (returns the SDK `NegotiationResult` envelope verbatim - price, currency, negotiation_hash, provider_sig), which the executor returns directly to the buyer over A2A. `chain_id` + `verifying_contract` are bound into the signature, so the quote cannot be replayed on another chain/contract. **Money is never in the LLM.**
+1. Fixed code reads the shared USD **list price** and ordered canonical asset set from `[payments.seller]`. The LLM is never invoked in the negotiate path and never proposes or touches the price.
+2. Fixed code resolves the requested asset on the exact network and converts the shared USD value to that token's atomic units using its catalog decimals. Canonical `price_usd` is not passed through the legacy U-only `min_price`/`max_price` clamp.
+3. `signing.ts` `signQuote` does the **EIP-191 sign** with a short TTL (returns the SDK `NegotiationResult` envelope verbatim - price, currency, negotiation_hash, provider_sig), which the executor returns directly to the buyer over A2A. `chain_id` + `verifying_contract`, the canonical token address, and the amount are bound into the signature, so the quote cannot be replayed on another chain, contract, or asset. **Money is never in the LLM.**
 
-Tune the clamp in `<workspace>/app/agent/studio.toml`:
+Configure the canonical seller price in `<workspace>/app/agent/studio.toml`:
 
 ```toml
 # app/agent/studio.toml
+[payments.seller]
+price_usd = "0.10"
+assets = ["TEST_U", "TEST_USDC", "TEST_USDT"] # network-canonical AssetIds
+
 [payments.erc8183]
-currency = "0x..."           # $U token - prefilled by `bag init` from [network].default; rarely changed
-price = "100000000000000000" # raw wei - the asking list price the quote signs (scaffold default 0.1 U; U has 18 decimals)
-min_price = "0"              # raw wei - clamp floor
-max_price = ""               # raw wei - clamp ceiling; empty = unbounded (a "0" ceiling clamps every paid quote to 0)
 quote_ttl_seconds = 300
 default_estimated_completion_seconds = 600
 ```
 
-An explicit `price = "0"` opts into free jobs on the canonical zero-price-compatible ERC-8183 stack. Keep `currency` configured because it remains part of the signed quote.
+Every configured asset uses the same USD value and its own decimals. Any non-empty subset is
+valid; Mainnet may use USD1-only or any USD1/USDC/USDT combination, while the shown Testnet
+example correctly excludes unsupported USD1 on Testnet. The quote binds a canonical token address and
+each job binds exactly one immutable token. Mainnet USD1 is 18-decimal EIP-3009 with domain
+`World Liberty Financial USD / 1`, has no Permit2 route, and still requires Commerce/live
+verification before release. Canonical FREE is explicit:
+
+```toml
+[payments.seller]
+price_usd = "0"
+```
+
+Legacy U-only projects without `[payments.seller]` retain `[payments.erc8183]`
+`price`/`min_price`/`max_price`/`currency` and their existing clamp semantics. Those legacy
+bounds never alter canonical `price_usd`. Defining `[payments.seller]` together with any legacy
+price or asset field is an ambiguity error; use `bag config migrate-seller` rather than relying
+on precedence.
 
 Prefer the CLI so the zero-price choice is visible and remains a decimal string:
 
 ```bash
-bag config set payments.erc8183.price 0
+bag config set payments.seller.price_usd 0
 bag doctor
 bag deploy prepare
 ```
@@ -124,7 +140,7 @@ ERC-8004 identity is registered with the **AgentCore endpoint**: A2A uses `Agent
 
 - The endpoint must be **reachable** when registered. For A2A, smoke test the normalized card URL directly, for example `curl <agentcore-invocations-url>/.well-known/agent-card.json` (or `curl <already-registered-card-url>` if the endpoint already includes `/.well-known/agent-card.json`). For MCP, connect an MCP client to the deployed `/mcp` URL. Chain doesn't verify reachability, but buyers will see failures.
 - `bag deploy --provider aws` provisions the Cognito user pool + buyer M2M client and prints the token URL, client id, and scope. Hand those to each buyer (the client secret is retrieved read-only from the AWS Console - studio never stores it). `bag deploy provision-cognito` is deprecated; its CDK pool is never used by a deploy.
-- Price bounds (`min_price`/`max_price`) live with the Agent - it clamps + signs the quote.
+- Canonical `[payments.seller].price_usd` lives with the Agent; fixed code converts it for the selected asset and signs the quote. Only a legacy U-only config without `[payments.seller]` uses `min_price`/`max_price` clamp semantics.
 
 ## Stage 5 - How a SUBMITTED job happens
 

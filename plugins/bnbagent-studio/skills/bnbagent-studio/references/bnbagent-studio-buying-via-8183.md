@@ -11,7 +11,7 @@ description: When the user is acting as ERC-8183 buyer - finding a provider, get
 
 Procedure for **buyer-side flow**: have your agent (or you directly via CLI) purchase a service from another ERC-8183 seller, verify the deliverable, and close out the job with the right `settle` action.
 
-Audience: Claude Code in a current TypeScript workspace with a funded wallet (tBNB + U). The buying CLI (`bag erc8183 buy/status/fetch/settle`) targets the **Agent sub-project's** wallet - these commands resolve to `<workspace>/app/agent/` automatically when run from the workspace root.
+Audience: Claude Code in a current TypeScript workspace with a funded wallet (gas + the explicitly selected active catalog asset: Mainnet U/USD1/USDC/USDT or Testnet U/USDC/USDT). The buying CLI (`bag erc8183 buy/status/fetch/settle`) targets the **Agent sub-project's** wallet - these commands resolve to `<workspace>/app/agent/` automatically when run from the workspace root.
 
 > **Protocol facts** (independent of the local filesystem layout): 24h dispute window, `0x17be5b7b` revert, `expired_at` arithmetic.
 
@@ -29,7 +29,7 @@ This skill owns: **buy → fetch → approve/dispute/reject loop**, whether driv
 
 | Action | Allowed | What happens |
 | --- | --- | --- |
-| `bag erc8183 settle <id> --action approve` | **After 24h dispute_window has passed** (chain enforces; reverts with `0x17be5b7b` if early) | Job → `COMPLETED`; seller receives U |
+| `bag erc8183 settle <id> --action approve` | **After 24h dispute_window has passed** (chain enforces; reverts with `0x17be5b7b` if early) | Job → `COMPLETED`; seller receives the job-bound token |
 | `bag erc8183 settle <id> --action dispute` | **Within dispute_window** | Opens governance flow; quorum vote decides; refund possible |
 | `bag erc8183 settle <id> --action reject` | **Only if you're a quorum voter, not the buyer** | Job → `REJECTED` via governance |
 
@@ -40,7 +40,7 @@ Common error: `Submission deadline has passed` → buyer set `expiredAt` too sho
 ## Preconditions
 
 - `bag doctor` is clean (or only warns on LLM key)
-- For a paid job, the wallet has ≥ 0.05 tBNB (gas) and enough U for the budget plus slack. On BSC testnet the ERC-8183 kernel writes (`createJob` / `fund` deposit / `settle` …) are gas-sponsored via the SDK's MegaFuel paymaster **when they target the canonical contracts**, so you spend far less tBNB than that - but **not zero**: `fund` sends an ERC-20 `approve` (a token call, not sponsored) when the token allowance is too low - typically just the first fund, since studio approves a floored cap that later jobs reuse. Keep a little tBNB for it. (Mainnet is never sponsored.) Sponsorship is granted per target contract by the paymaster policy: a custom/QA stack selected via the `ERC8183_*_ADDRESS` overrides is normally **not** covered, so every write self-pays gas (the SDK logs `… is not sponsorable on this network; self-paying gas` and falls back automatically) - keep tBNB for the whole flow, or set `BNBAGENT_USE_PAYMASTER=0` to skip the per-transaction sponsorship probe and self-pay directly. For a FREE job, use `--budget-u 0`: no U balance, ERC-20 approval, or token escrow is needed. The canonical zero-price-compatible stack keeps the normal testnet paymaster path; custom stacks still need their own gas path.
+- For a paid job, the wallet has gas and enough of the selected catalog token for the budget plus slack. On Mainnet, `USD1` is `0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d`, 18 decimals and EIP-3009-only (`World Liberty Financial USD / 1`); it is implemented but needs Commerce allowlist/live verification before release. On Testnet, ERC-8183 U resolves to `TEST_U` at `0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565` (18 decimals); USDC/USDT resolve to their network-specific canonical IDs, and USD1 is unsupported. A job stores exactly one immutable token. Sponsorship remains target-specific, and an ERC-20 approval may still need gas. For a FREE job use `--budget-usd 0`: no token balance, approval, or escrow is needed.
 - You know the **provider's wallet address** (the seller agent's address)
 - The seller is **reachable** (its A2A agent is deployed somewhere); discoverable via the provider's `bag erc8004 resolve <agent_id>` endpoint URI
 
@@ -67,29 +67,42 @@ If you want to talk to the seller manually, the seller now exposes its `negotiat
 ## Stage 3 - Buy
 
 ```bash
+# Omit --asset only when you intentionally want default U.
+# --budget-u remains a U-only compatibility flag; --budget-usd is preferred.
+# --deadline-min is the seller's submission window (default 30).
 bag erc8183 buy --provider <provider_addr> "<task description>" \
-  --budget-u <amount>           \  # capped by policy.budget_cap_u
-  --deadline-min <minutes>      \  # default 30; this is the seller's submission window
+  --asset USDC \
+  --budget-usd <amount> \
+  --deadline-min <minutes> \
   --network bsc-testnet
 # provider is a REQUIRED flag (--provider <addr> OR --agent-id <id>), not a positional;
 # `--agent-id` resolves the endpoint + negotiates first.
+
+# Mainnet USD1 is explicit; it never changes the Buyer default U.
+bag erc8183 buy --provider <provider_addr> "<task description>" \
+  --asset USD1 \
+  --budget-usd <amount> \
+  --deadline-min <minutes> \
+  --network bsc-mainnet
 ```
 
 For a signed FREE quote:
 
 ```bash
 bag erc8183 buy --provider <provider_addr> "<task description>" \
-  --budget-u 0 --deadline-min 30 --network bsc-testnet
+  --budget-usd 0 --deadline-min 30 --network bsc-testnet
 ```
 
 > **Task can be passed two ways** (both accepted): as a positional argument `bag erc8183 buy --provider <addr> "<task>"` OR via the flag `bag erc8183 buy --provider <addr> --task "<task>"`. Pass it once - supplying both at the same time is an error.
 
 The 4 on-chain steps run sequentially:
 
-1. `createJob(provider, expiredAt, description)` → returns `job_id`
+1. `createJobWithToken(provider, expiredAt, description, token)` → returns `job_id`
 2. `registerJob(jobId)`
 3. `setBudget(jobId, rawBudget)`
-4. `fund(jobId, rawBudget, approveFloor=rawBudget)` - auto-approves U only when the positive budget needs allowance; budget 0 skips approval and escrow
+4. `fund(jobId, rawBudget, approveFloor=rawBudget)` - auto-approves the job token only when the positive budget needs allowance; budget 0 skips approval and escrow
+
+If the selected asset is unavailable or underfunded, Studio prints only verified alternatives with exact `--asset SYMBOL` hints. It does not switch token, create a job, or retry payment automatically.
 
 Output prints 4 tx hashes + `job_id`. Note the `job_id` for later.
 

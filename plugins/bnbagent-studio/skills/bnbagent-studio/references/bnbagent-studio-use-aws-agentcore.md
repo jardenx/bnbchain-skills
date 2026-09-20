@@ -1,6 +1,6 @@
 ---
 name: bnbagent-studio-use-aws-agentcore
-description: When the user wants to deploy or operate a bnbagent-studio project on AWS Bedrock AgentCore - deploy with `bag deploy --provider aws` (all cloud lifecycle mutations are delegated to pinned `@bnbagent/deploy-cli@0.5.15`), inspect with `bag deploy status` / `logs --provider aws` / `verify --provider aws`, and tear down with `bag deploy destroy --provider aws --execute [--purge]`. Also covers AWS credential prerequisites, the optional read-only quota probe, and the runtime-secret channel.
+description: When the user wants to deploy or operate a bnbagent-studio project on AWS Bedrock AgentCore - deploy with `bag deploy --provider aws` (all cloud lifecycle mutations are delegated to pinned `@bnbagent/deploy-cli@0.6.6`), inspect with `bag deploy status` / `logs --provider aws` / `verify --provider aws`, and tear down with `bag deploy destroy --provider aws --execute [--purge]`. Also covers AWS credential prerequisites, the optional read-only quota probe, and the runtime-secret channel.
 ---
 
 > **Reference file** of the `bnbagent-studio` router skill - installed at `bnbagent-studio/references/` and loaded on demand (not a standalone skill). Route here via the router's decision tree.
@@ -103,7 +103,7 @@ If verification reports a partial ERC-8004 registration because `setAgentURI` di
 
 ## Reference
 
-- b402/x402 selling on self-hosted AgentCore: the rail activates in-process with complete B402 credentials for PAID, or without them when explicit zero selects FREE. There is no anonymous URL - operate your own HTTP front that relays envelope-v1 through the runtime's configured authorizer. The default Bag deploy uses Cognito OAuth over HTTPS, not SDK/SigV4. PAID also needs a fixed-egress B402 Relay or VPC/NAT/Elastic-IP path. See `bnbagent-studio-selling-via-b402` and `docs/guides/self-hosted-x402-gateway.md`.
+- b402/x402 selling on self-hosted AgentCore: the rail activates in-process with complete B402 credentials for PAID, or without them when explicit zero selects FREE. There is no anonymous URL - operate your own HTTP front that relays envelope-v1 through the runtime's configured authorizer. The default Bag deploy uses Cognito OAuth over HTTPS, not SDK/SigV4. PAID also needs a fixed-egress B402 Relay or VPC/NAT/Elastic-IP path. See `bnbagent-studio-selling-via-b402` and the public [BNB Agent Studio deployment guide](https://docs.bnbchain.org/developer-kit/bnbchain-studio/deployment/).
 - `bag deploy --help` / `bag deploy <command> --help` (authoritative for commands + flags)
 - `agentcore/agentcore.json` - name (resource naming continuity), protocol, authorizer, envVars
 - `agentcore/aws-targets.json` - AWS account + region

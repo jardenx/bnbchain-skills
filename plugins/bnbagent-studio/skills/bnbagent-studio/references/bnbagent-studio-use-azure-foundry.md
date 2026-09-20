@@ -1,6 +1,6 @@
 ---
 name: bnbagent-studio-use-azure-foundry
-description: When the user wants to deploy or operate a bnbagent-studio project on Azure AI Foundry Hosted Agents - scaffold with `bag init --runtime azure-foundry`, deploy either to the managed platform with `bag deploy --provider bnb --backend azure` or directly with `bag deploy --provider azure`; all cloud lifecycle execution is delegated to pinned `@bnbagent/deploy-cli@0.5.15`. Native MCP is not supported on Azure; use AgentCore for MCP.
+description: When the user wants to deploy or operate a bnbagent-studio project on Azure AI Foundry Hosted Agents - scaffold with `bag init --runtime azure-foundry`, deploy either to the managed platform with `bag deploy --provider bnb --backend azure` or directly with `bag deploy --provider azure`; all cloud lifecycle execution is delegated to pinned `@bnbagent/deploy-cli@0.6.6`. Native MCP is not supported on Azure; use AgentCore for MCP.
 ---
 
 > **Reference file** of the `bnbagent-studio` router skill - installed at `bnbagent-studio/references/` and loaded on demand (not a standalone skill). Route here via the router's decision tree.
@@ -31,7 +31,7 @@ Procedure for deploying and operating the seller Agent on **Azure AI Foundry Hos
 
 1. **Bun 1.3+ (`bunx`) on PATH** - the pinned `@bnbagent/deploy-cli` runs through it.
 2. **Docker running** - the image is built locally (linux/amd64) before push.
-3. **An Azure subscription** the operator may provision in (Foundry account/project, container registry, hosted agent). Before a local self-deploy, run `bunx --bun @bnbagent/deploy-cli@0.5.15 login --provider azure`; use OIDC/service-principal credentials in CI.
+3. **An Azure subscription** the operator may provision in (Foundry account/project, container registry, hosted agent). Before a local self-deploy, run `bunx --bun @bnbagent/deploy-cli@0.6.6 login --provider azure`; use OIDC/service-principal credentials in CI.
 
 ## ⚠️ Foundry gotchas (read before deploying)
 
